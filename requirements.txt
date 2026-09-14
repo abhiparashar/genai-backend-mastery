@@ -1,0 +1,14 @@
+# Core runtime. Deliberately small so `make setup` is fast and every module
+# in this repo runs offline against the built-in FakeProvider.
+#
+# Pinned with `>=` here for learning; in PRODUCTION you pin exactly and use a
+# lockfile (pip-tools `pip-compile`, uv, or poetry). See best-practices/dependency-management.md
+
+pydantic>=2.6,<3          # runtime validation; the Python answer to Bean Validation
+pydantic-settings>=2.2    # typed config from env vars (@ConfigurationProperties equivalent)
+httpx>=0.27               # sync + async HTTP client (async is why we don't use `requests`)
+tenacity>=8.2             # retry with exponential backoff + jitter
+python-dotenv>=1.0        # .env loading for local dev only
+fastapi>=0.110            # the "Spring Boot" of Python
+uvicorn[standard]>=0.29   # ASGI server (the Tomcat)
+numpy>=1.24               # vector math for embeddings / cosine similarity

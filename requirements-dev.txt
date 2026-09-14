@@ -1,0 +1,8 @@
+-r requirements.txt
+
+pytest>=8.0
+pytest-asyncio>=0.23      # async test support
+pytest-cov>=5.0
+ruff>=0.4                 # linter + formatter (replaces black + flake8 + isort)
+mypy>=1.9                 # static type checking (closest thing to javac)
+respx>=0.21               # mock httpx calls; never hit a real LLM in unit tests

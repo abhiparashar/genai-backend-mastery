@@ -1,0 +1,51 @@
+[project]
+name = "genai-backend-mastery"
+version = "1.0.0"
+description = "Java backend engineer -> production GenAI engineer. Runnable curriculum, not theory."
+requires-python = ">=3.9"
+
+# NOTE ON PYTHON VERSION
+# Target runtime for this curriculum is 3.11+ (faster, better error messages, tomllib,
+# ExceptionGroup, typing improvements). All code here is written to ALSO run on 3.9 by
+# using `from __future__ import annotations`, so you can start today and upgrade later.
+#   pyenv install 3.11.9 && pyenv local 3.11.9
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I isort, B bugbear, UP pyupgrade,
+# SIM simplify, RET return, ARG unused args, C4 comprehensions, ASYNC async bugs
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET", "C4", "ASYNC"]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # FastAPI Depends() in defaults is idiomatic
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Exercise stubs intentionally contain unused args and empty bodies.
+"*/exercises/*" = ["ARG", "B", "F841"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "01-python-foundations/tests",
+    "02-python-advanced/tests",
+    "03-llm-integration/tests",
+    "04-rag/tests",
+    "05-agents/tests",
+    "06-production-service/tests",
+    "08-interview-prep/tests",
+]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers"
+markers = [
+    "live: hits a real LLM provider; requires API keys. Deselected by default in CI.",
+    "slow: takes more than a second.",
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
