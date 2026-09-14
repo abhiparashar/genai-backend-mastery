@@ -8,8 +8,9 @@ layer -- the same reason you'd map a JPA entity to a domain object in Java.
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional, Sequence
+from typing import Any, Optional
 
 # Roles are the wire vocabulary shared by OpenAI and Anthropic.
 ROLES = ("system", "user", "assistant", "tool")
@@ -30,7 +31,7 @@ class Message:
         if self.role not in ROLES:
             raise ValueError(f"invalid role {self.role!r}; expected one of {ROLES}")
 
-    def to_wire(self) -> Dict[str, str]:
+    def to_wire(self) -> dict[str, str]:
         return {"role": self.role, "content": self.content}
 
 
@@ -57,7 +58,7 @@ class Usage:
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
-    def __add__(self, other: "Usage") -> "Usage":
+    def __add__(self, other: Usage) -> Usage:
         return Usage(
             self.input_tokens + other.input_tokens,
             self.output_tokens + other.output_tokens,
@@ -70,7 +71,7 @@ class ToolCall:
 
     id: str
     name: str
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    arguments: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -117,11 +118,11 @@ class LLMProvider:
         raise NotImplementedError
 
 
-def messages_to_wire(messages: Sequence[Message]) -> List[Dict[str, str]]:
+def messages_to_wire(messages: Sequence[Message]) -> list[dict[str, str]]:
     return [m.to_wire() for m in messages]
 
 
-def split_system(messages: Sequence[Message]) -> "tuple[Optional[str], List[Message]]":
+def split_system(messages: Sequence[Message]) -> tuple[Optional[str], list[Message]]:
     """Split a leading system message out of the list.
 
     Needed because Anthropic takes `system` as a TOP-LEVEL request field, while
@@ -129,7 +130,7 @@ def split_system(messages: Sequence[Message]) -> "tuple[Optional[str], List[Mess
     that bites everyone porting between the two.
     """
     system_text: Optional[str] = None
-    rest: List[Message] = []
+    rest: list[Message] = []
     for m in messages:
         if m.role == "system" and system_text is None and not rest:
             system_text = m.content

@@ -151,7 +151,11 @@ def classify_status(
     if status_code >= 500:
         return TransientError(f"upstream error {status_code}", **kw)  # type: ignore[arg-type]
     if status_code in (400, 422):
-        if "context_length" in lowered or "too many tokens" in lowered or "maximum context" in lowered:
+        if (
+            "context_length" in lowered
+            or "too many tokens" in lowered
+            or "maximum context" in lowered
+        ):
             return ContextLengthError("input exceeds the model context window", **kw)  # type: ignore[arg-type]
         if "content_filter" in lowered or "content policy" in lowered:
             return ContentFilterError("request blocked by the provider content filter", **kw)  # type: ignore[arg-type]

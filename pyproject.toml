@@ -21,6 +21,15 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET", "C4", "ASYNC"]
 ignore = [
     "E501",  # line length handled by formatter
     "B008",  # FastAPI Depends() in defaults is idiomatic
+    # --- Deliberate, not laziness ---
+    # UP007/UP045 push `X | Y` and `X | None`. Those are only legal at RUNTIME on
+    # 3.10+. This repo's floor is 3.9, and Pydantic v2 + FastAPI EVALUATE
+    # annotations at runtime even when `from __future__ import annotations` is
+    # present -- so `Optional[str]` in a model field is required, not old-fashioned.
+    # Builtin generics (UP006, `list[str]`) stay enforced: those are safe because
+    # they only ever appear in lazily-evaluated annotation positions here.
+    "UP007",
+    "UP045",
 ]
 
 [tool.ruff.lint.per-file-ignores]

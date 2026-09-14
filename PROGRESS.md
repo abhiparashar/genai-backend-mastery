@@ -1,0 +1,208 @@
+# Build Progress Tracker
+
+**Purpose:** this file is the handoff document. Any future session (human or AI) reads
+this first, and can continue building the repo without re-deriving decisions.
+
+Last updated: 2026-09-14 · Repo: https://github.com/abhiparashar/genai-backend-mastery
+
+---
+
+## How we work
+
+- **One file at a time.** Write a file → smoke-test it → lint it → `git commit` → `git push`.
+  Never batch multiple modules into one commit. Small commits survive interruptions.
+- **Never leave a stub.** If a file is committed, it is finished. Unstarted work lives in
+  the checklist below, not as `TODO` comments in code.
+- **Verify before committing.** Every module gets an actual execution, not an eyeball:
+  `.venv/bin/python -c "..."` smoke test, then `.venv/bin/ruff check <path>`.
+
+### Commands
+
+```bash
+cd ~/Desktop/genai-backend-mastery
+.venv/bin/python -m pytest -m "not live" -q     # full offline suite
+.venv/bin/ruff check <path> && .venv/bin/ruff format <path>
+git add -A && git commit -m "..." && git push origin main
+```
+
+If `.venv` is missing: `make setup`.
+
+---
+
+## Writing style (match this exactly)
+
+The repo has one voice. New files must be indistinguishable from existing ones.
+
+**Audience:** a senior Java/Spring backend engineer with zero Python and zero ML.
+Never explain what a REST API or a circuit breaker is. Always explain what a decorator
+or the GIL is.
+
+**Module docstring.** Every file opens with one. It states WHAT the module does and WHY
+it exists — the design rationale, not a feature list. Where a module carries the
+module's central idea, say so outright (see `llmkit/errors.py`: *"THIS MODULE IS THE
+LIBRARY. Everything else is plumbing."*).
+
+**Comments earn their place.** They explain the non-obvious: a failure mode, a cost, a
+trap, why the naive version is wrong. Never restate the code.
+
+```python
+# GOOD - explains a trap the reader would hit
+# Still capped: a hostile or buggy Retry-After of 3600 must not hang us.
+return min(float(retry_after), policy.max_delay)
+
+# BAD - restates the code
+# return the minimum of retry_after and max_delay
+```
+
+**Java analogies, used surgically.** One per concept, at first introduction, then move
+on. `Pydantic == Bean Validation + Lombok`, `Depends() == @Autowired`,
+`tenacity == Resilience4j`, `asyncio.Task == CompletableFuture`. Do not pile them up.
+
+**Teach the trade-off, not just the API.** Any time there is a choice, name the
+alternative and why it lost. The reader is being trained to defend decisions in an
+interview.
+
+**Numbers over adjectives.** "~4 chars per token", "an LLM call is 2-20s of I/O",
+"a 10-step agent run costs ~10x a single call" — not "LLM calls are slow".
+
+**Docstrings** use the imperative contract style, with doctest-style examples where the
+function is pure and the example is short:
+
+```python
+def compute_delay(attempt: int, policy: RetryPolicy) -> float:
+    """Delay before the next attempt. `attempt` is 0-based.
+
+    >>> p = RetryPolicy(base_delay=1.0, jitter=False)
+    >>> [compute_delay(i, p) for i in range(4)]
+    [1.0, 2.0, 4.0, 8.0]
+    """
+```
+
+**Commit messages:** `type(scope): summary`, then a body explaining *why*, with a
+per-file line when the commit touches several. See `git log` for the pattern.
+
+---
+
+## Hard technical constraints
+
+These are load-bearing. Violating them breaks CI or breaks the repo's promise.
+
+1. **Python 3.9 is the floor** (stock macOS python3). 3.11 is the recommended target.
+   Every `.py` file starts with `from __future__ import annotations`.
+2. **`X | None` is BANNED in runtime-evaluated positions.** Pydantic v2 and FastAPI
+   evaluate annotations at runtime even with the `__future__` import, and on 3.9 that
+   raises. Use `Optional[X]` / `Union[...]` in model fields and route handlers.
+   Ruff rules `UP007`/`UP045` are disabled in `pyproject.toml` for this reason.
+   Builtin generics (`list[str]`, `dict[str, Any]`) ARE fine — they only ever appear in
+   lazily-evaluated annotations. `UP006` stays enforced.
+   Also banned: `match`, `tomllib`, `itertools.pairwise`, `typing.Self`.
+3. **Core deps only**: stdlib, `pydantic`, `pydantic-settings`, `httpx`, `tenacity`,
+   `python-dotenv`, `fastapi`, `uvicorn`, `numpy`. Dev: `pytest`, `pytest-asyncio`,
+   `respx`, `ruff`, `mypy`.
+   Everything else (`openai`, `anthropic`, `tiktoken`, `chromadb`,
+   `sentence-transformers`, `pypdf`, `redis`, `sqlalchemy`, `langchain`) is **optional**:
+   guarded import + `pytest.importorskip` in its tests. They are NOT installed.
+4. **Zero network in tests.** The suite runs offline with no API keys. Real-provider
+   tests are marked `@pytest.mark.live` and deselected by default. Mock HTTP with `respx`.
+5. **Test file names are globally unique** (no `__init__.py` in test dirs, so duplicate
+   basenames crash collection). Prefix with the module slug: `test_llmkit_retry.py`,
+   `test_rag_chunking.py`.
+6. **Every `tests/` dir needs this `conftest.py`** (dirs start with digits, so they are
+   not importable packages):
+   ```python
+   from __future__ import annotations
+   import pathlib, sys
+   sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+   ```
+7. **Line length 100**, ruff-formatted.
+
+---
+
+## The shared LLM contract
+
+Modules 03/04/05/06 and every project are **standalone** — each defines its own copy of
+this shape rather than importing across directories (directory names starting with
+digits are not importable). Keep the field names IDENTICAL everywhere so the repo reads
+as one system. Canonical definition: `03-llm-integration/llmkit/types.py`.
+
+```python
+Message(role, content)                      # role: system|user|assistant|tool
+Usage(input_tokens, output_tokens)          # .total_tokens, supports +
+ToolCall(id, name, arguments)
+LLMResponse(text, usage, model, finish_reason, latency_ms, cached, tool_calls, cost_usd)
+LLMProvider: .complete() / .acomplete() / .stream()
+```
+
+`FakeProvider` is the backbone of every test: deterministic, seeded, scriptable canned
+replies, `fail_times=N` then succeed, artificial latency, call counter.
+
+### Cross-service HTTP contract (module 06 Python service ⇄ module 07 Java gateway)
+
+Decided and final. Module 07's Spring gateway is built against this.
+
+- Auth `X-API-Key`. Correlation `X-Correlation-ID`, echoed on every response.
+- `POST /v1/chat` → `{text, model, finish_reason, usage{input_tokens,output_tokens,total_tokens}, cost_usd, latency_ms, cached, correlation_id}`
+- Request body is **`messages[]` + `conversation_id`** (not `prompt`+`system` — chosen
+  because it maps 1:1 onto both provider payloads and is multi-turn native).
+- `POST /v1/chat/stream` → SSE with **named events**:
+  `start{id,model}` · `token{delta}` · `heartbeat{ts}` · `usage{usage,cost_usd}` ·
+  `error{code,message}` · `done` with data `[DONE]`.
+- `POST /v1/chat/async` → 202 `{job_id,status}`; `GET /v1/jobs/{id}` → status/result.
+- `GET /healthz` (liveness) · `/readyz` (503 when a dep is down) · `/metrics` (Prometheus).
+- Error envelope on every non-2xx:
+  `{"error":{"code":"rate_limited|invalid_request|unauthorized|budget_exceeded|upstream_error|internal","message":"...","correlation_id":"..."}}`
+- Statuses: 401 · 413 · 422 · 429 (+`Retry-After`, `X-RateLimit-*`) · 402 budget · 502/503 upstream · 500 internal.
+- Resilience: retry ONLY 429/502/503/504 + connect/read timeouts; **never** 400/401/402/413/422.
+  4xx must not open the circuit breaker. Gateway time limiter 35s vs service timeout 30s.
+  No retry on a stream after the first byte is sent.
+
+---
+
+## Status
+
+Legend: `[x]` done & pushed · `[~]` in progress · `[ ]` not started
+
+### Done
+
+- [x] Repo scaffold — `pyproject.toml` (ruff/pytest/mypy), `Makefile`, `.gitignore`,
+      `.env.example`, `requirements{,-dev,-optional}.txt`
+- [x] `.github/workflows/ci.yml` — offline matrix on 3.9/3.11/3.12, lint + format + tests + mypy
+- [x] `README.md` — the 8-phase / 12-month roadmap, Java↔Python mapping, accelerated tracks
+- [x] `roadmap-source.md` — the original 3,169-line curriculum brief (reference)
+- [x] `03-llm-integration/llmkit/types.py` — Message/Usage/ToolCall/LLMResponse/LLMProvider, `split_system()`
+- [x] `03-llm-integration/llmkit/errors.py` — retryable-vs-fatal taxonomy, `classify_status()`
+- [x] `03-llm-integration/llmkit/retry.py` — full-jitter backoff, Retry-After, wall-clock budget, sync+async
+
+### Next up (in order)
+
+**Module 03 — `llmkit` (finish first; other modules mirror its contract)**
+- [ ] `llmkit/providers/fake.py` — FakeProvider. **DO THIS NEXT.** Everything downstream tests against it.
+- [ ] `llmkit/cost.py` — price table + `LAST_VERIFIED` date, `estimate_cost()`, `CostTracker`, `BudgetGuard`; tiktoken guarded, ~4-chars/token fallback
+- [ ] `llmkit/cache.py` — stable cache key, in-memory LRU+TTL, `RedisCache` (guarded); **only correct at temperature=0**
+- [ ] `llmkit/circuit.py` — closed/open/half-open breaker (name-check Resilience4j)
+- [ ] `llmkit/providers/openai.py` — httpx, not the SDK, so the wire format is visible; sync+async+SSE
+- [ ] `llmkit/providers/anthropic.py` — same, incl. top-level `system` field difference
+- [ ] `llmkit/structured.py` — JSON mode → extract-from-prose repair → Pydantic validate → bounded re-ask
+- [ ] `llmkit/client.py` — façade: provider selection, retry, timeout, cache, cost, budget, fallback chain, breaker, correlation-id logging
+- [ ] `llmkit/__init__.py` — public exports
+- [ ] `tests/` — `test_llmkit_{retry,errors,cache,cost,circuit,structured,providers,client}.py` + `conftest.py`
+- [ ] `examples/` — `llmkit_ex_{basic,streaming,concurrent,structured,resilience}.py`
+- [ ] `03-llm-integration/README.md` — architecture, failure-mode table, cost checklist
+
+**Then, in this order**
+- [ ] `04-rag/` — `ragkit`: types, loaders, chunking (4 strategies), embeddings (hashing/ST/OpenAI), vectorstore (exact + ANN), retrieval (BM25/vector/hybrid-RRF/MMR/rerank/HyDE), pipeline (citations, context budget, "I don't know"), evaluation (precision/recall/faithfulness/MRR/NDCG) + `data/` golden set + 4 examples + tests + README
+- [ ] `05-agents/` — `agentkit`: types, tools (`@tool` → JSON Schema from type hints; AST calculator, jailed file read, allowlisted HTTP, read-only SQL), react, function_calling, memory, planning, multi_agent, guardrails + 5 examples + tests + README
+- [ ] `06-production-service/` — FastAPI per the HTTP contract above: config, schemas, deps, llm, routers/{chat,health}, middleware (token bucket), observability (JSON logs + PII redaction + metrics), costs, security, Dockerfile, docker-compose, k8s/ + tests + README
+- [ ] `07-java-integration/` — `spring-ai-gateway/` (WebFlux + Resilience4j + SSE passthrough) and `spring-ai-native/` (Spring AI + pgvector RAG) + docker-compose + README (Java-vs-Python boundary decision table, strangler-fig migration)
+- [ ] `01-python-foundations/` — 10 exercise files / ~60 exercises, stub+solution+test triplets, Java-trapdoor coverage
+- [ ] `02-python-advanced/` — 6 topic files: decorators, generators, context managers, typing, **async** (highest value), performance
+- [ ] `08-interview-prep/` — 100 concept answers, 10 worked system designs w/ capacity math, 10 tested coding challenges, behavioral STAR, java-challenges
+      (verbatim question text lives in `roadmap-source.md`: concepts 2767-2887, designs 2889-2988, framework 2989-3013, architecture Qs 3014-3030, python challenges 3034-3044, java 3046-3056, behavioral 3064-3075, take-homes 3108-3128)
+- [ ] `best-practices/` — 9 docs: index, python-for-java-devs, llm-app-architecture, cost-optimization, security, testing-genai, observability, production-checklist, dependency-management
+- [ ] `projects/` — `01-document-qa`, `02-support-agent`, `03-text-to-sql`, each with README/src/tests/Dockerfile/compose/demo data + `projects/README.md` index with the 30-project backlog
+
+### Housekeeping owed at the end
+
+- [ ] Root `README.md` links every module README once they exist
+- [ ] `make check` green (lint + format + mypy + full offline suite)
+- [ ] Confirm CI passes on GitHub Actions
