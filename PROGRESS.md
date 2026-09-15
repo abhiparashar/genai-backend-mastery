@@ -3,7 +3,7 @@
 **Purpose:** this file is the handoff document. Any future session (human or AI) reads
 this first, and can continue building the repo without re-deriving decisions.
 
-Last updated: 2026-09-14 · Repo: https://github.com/abhiparashar/genai-backend-mastery
+Last updated: 2026-09-15 · Repo: https://github.com/abhiparashar/genai-backend-mastery
 
 ---
 
@@ -186,14 +186,30 @@ Legend: `[x]` done & pushed · `[~]` in progress · `[ ]` not started
   - `examples/llmkit_ex_resilience.py`, `examples/llmkit_ex_concurrent.py` (12.1x measured)
   - `README.md` — architecture, failure-mode table, wire-diff table, exit criteria
 
+- [x] **Module 04 `04-rag/` — COMPLETE.** 64 tests, 0.4s, fully offline.
+  - `ragkit/types.py` — Document/Chunk/ScoredChunk/Answer + standalone FakeProvider
+  - `ragkit/chunking.py` — fixed / recursive / markdown-structure / semantic + stats
+  - `ragkit/embeddings.py` — HashingEmbedder (offline), SemanticStubEmbedder
+    (teaching device), sentence-transformers + OpenAI (guarded), CachingEmbedder
+  - `ragkit/vectorstore.py` — exact cosine, IVFIndex (measured recall), Chroma
+    (guarded), pre-filtering, tenant isolation, memory estimates
+  - `ragkit/retrieval.py` — BM25, vector, hybrid RRF, MMR, LLM + cross-encoder
+    rerankers, multi-query, HyDE, parent-child
+  - `ragkit/pipeline.py` — ingest/answer, citations, context budget, refusal path
+  - `ragkit/evaluation.py` — golden sets, hit_rate/precision/recall/MRR/NDCG,
+    faithfulness, correctness, Scorecard + compare()
+  - `data/` — 6-doc corpus + 16-question golden set (2 unanswerable)
+  - `tests/test_rag_chunking.py` (24) + `tests/test_rag_retrieval.py` (40)
+  - `examples/rag_ex_hybrid_vs_vector.py`, `examples/rag_ex_evaluate.py`
+  - `README.md` — chunking tension, hybrid table, troubleshooting, exit criteria
+
 ### Next up (in order)
 
-**Optional polish for module 03 (skip unless you want it — module is usable now)**
-- [ ] `examples/llmkit_ex_{basic,streaming,structured}.py` — the three simple demos;
-      resilience + concurrent already cover the hard material
+**Optional polish (skip unless wanted — both modules are usable now)**
+- [ ] `03-llm-integration/examples/llmkit_ex_{basic,streaming,structured}.py`
+- [ ] `04-rag/examples/rag_ex_{minimal,chunking_compare}.py`
 
 **Then, in this order**
-- [ ] `04-rag/` — `ragkit`: types, loaders, chunking (4 strategies), embeddings (hashing/ST/OpenAI), vectorstore (exact + ANN), retrieval (BM25/vector/hybrid-RRF/MMR/rerank/HyDE), pipeline (citations, context budget, "I don't know"), evaluation (precision/recall/faithfulness/MRR/NDCG) + `data/` golden set + 4 examples + tests + README
 - [ ] `05-agents/` — `agentkit`: types, tools (`@tool` → JSON Schema from type hints; AST calculator, jailed file read, allowlisted HTTP, read-only SQL), react, function_calling, memory, planning, multi_agent, guardrails + 5 examples + tests + README
 - [ ] `06-production-service/` — FastAPI per the HTTP contract above: config, schemas, deps, llm, routers/{chat,health}, middleware (token bucket), observability (JSON logs + PII redaction + metrics), costs, security, Dockerfile, docker-compose, k8s/ + tests + README
 - [ ] `07-java-integration/` — `spring-ai-gateway/` (WebFlux + Resilience4j + SSE passthrough) and `spring-ai-native/` (Spring AI + pgvector RAG) + docker-compose + README (Java-vs-Python boundary decision table, strangler-fig migration)
