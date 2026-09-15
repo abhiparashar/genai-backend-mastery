@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring Boot gateway that fronts the Python AI service (module 06).
+
+  WebFlux rather than Spring MVC, for one specific reason: this service's job
+  is to wait on a slow upstream and stream bytes back. With MVC each in-flight
+  LLM call holds a servlet thread for 2-20 seconds, so 200 concurrent requests
+  need 200 threads. WebFlux holds none while waiting. It is the same argument
+  as asyncio in Python, and it applies for the same reason.
+
+  WebFlux is also the only sane way to pass an SSE stream through: Flux is
+  natively a stream, so backpressure and cancellation work end to end.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.genai</groupId>
+    <artifactId>spring-ai-gateway</artifactId>
+    <version>1.0.0</version>
+    <name>spring-ai-gateway</name>
+    <description>Spring Boot gateway for a Python GenAI service</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <resilience4j.version>2.2.0</resilience4j.version>
+    </properties>
+
+    <dependencies>
+        <!-- Reactive web: WebFlux for both the server and the WebClient. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!-- Bean Validation. The Pydantic equivalent: annotate the DTO and
+             invalid requests are rejected before the controller runs. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Reactive Redis for conversation history. Reactive matters: a
+             blocking Redis call inside a WebFlux handler stalls the event
+             loop, which is the same mistake as time.sleep() in asyncio. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+
+        <!-- Resilience4j: circuit breaker, retry, bulkhead, time limiter.
+             The reactor variant, so operators compose into the Flux/Mono
+             chain rather than blocking it. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+            <version>${resilience4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-reactor</artifactId>
+            <version>${resilience4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- Actuator + Micrometer: /health, /metrics, Prometheus scrape. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ---------------- test ---------------- -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- WireMock: stub the Python service so gateway tests cover the
+             failure paths (500, timeout, malformed SSE) that you cannot
+             reliably produce against a real upstream. -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.9.1</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Layered jar: dependencies and application code land in
+                         separate Docker layers, so a code-only change rebuilds
+                         a few MB instead of the whole fat jar. -->
+                    <layers><enabled>true</enabled></layers>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

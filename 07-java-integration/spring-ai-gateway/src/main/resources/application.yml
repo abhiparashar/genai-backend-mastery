@@ -1,0 +1,93 @@
+server:
+  port: 8080
+  shutdown: graceful          # finish in-flight LLM calls before exiting
+
+spring:
+  application:
+    name: spring-ai-gateway
+  lifecycle:
+    # Must exceed the longest expected request. An LLM call can take 30s, so
+    # the 30s default would cut live requests on every single deploy.
+    timeout-per-shutdown-phase: 45s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s             # Redis is fast; a slow Redis is a broken Redis
+
+ai:
+  service:
+    # `ai-service` is the compose/k8s service name of the Python app.
+    base-url: ${AI_SERVICE_URL:http://localhost:8000}
+    api-key: ${AI_SERVICE_API_KEY:dev-key-1}
+    # 35s > the Python service's 30s LLM timeout. Inverting these produces
+    # gateway timeouts that leave no trace in the upstream's logs.
+    timeout-seconds: ${AI_SERVICE_TIMEOUT:35}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiService:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10      # do not judge health on 2 requests
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # THE IMPORTANT PART. Only upstream-health signals count as failures.
+        # If 4xx counted, one caller sending malformed requests would trip the
+        # breaker and take a healthy upstream offline for everybody.
+        recordExceptions:
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        ignoreExceptions:
+          - org.springframework.web.bind.support.WebExchangeBindException
+
+  retry:
+    instances:
+      aiService:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        # Jitter. Without it, every client that failed together retries
+        # together and keeps colliding -- the thundering herd.
+        enableRandomizedWait: true
+        randomizedWaitFactor: 0.5
+        retryExceptions:
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+
+  bulkhead:
+    instances:
+      aiService:
+        # Cap concurrent upstream calls so a traffic spike queues here instead
+        # of overwhelming the Python service.
+        maxConcurrentCalls: 100
+        maxWaitDuration: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Explicit list, never "*": /env and /heapdump leak configuration and
+        # memory contents to anyone who can reach the actuator port.
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true         # /health/liveness and /health/readiness
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    com.genai.gateway: INFO
+  pattern:
+    # Correlation id in every line, so Java and Python logs join on one key.
+    console: "%d{HH:mm:ss} %-5level [%X{correlationId:-}] %logger{20} - %msg%n"
