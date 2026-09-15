@@ -83,12 +83,14 @@ class BudgetRegistry:
     swapping the backend touches one class.
     """
 
-    def __init__(
-        self, global_limit_usd: float = 5.0, tenant_limit_usd: float = 1.0
-    ) -> None:
+    def __init__(self, global_limit_usd: float = 5.0, tenant_limit_usd: float = 1.0) -> None:
         self.global_window = Window(global_limit_usd)
         self.tenant_limit_usd = tenant_limit_usd
-        self._tenants: dict = defaultdict(lambda: Window(tenant_limit_usd))
+        # Remembered so reset() can restore them; see reset().
+        self._default_global_limit = global_limit_usd
+        self._default_tenant_limit = tenant_limit_usd
+        # Bound to self so a later configure() affects new tenants too.
+        self._tenants: dict = defaultdict(lambda: Window(self.tenant_limit_usd))
         self._lock = threading.Lock()
 
     def configure(self, *, global_limit_usd: float, tenant_limit_usd: float) -> None:
@@ -129,7 +131,17 @@ class BudgetRegistry:
                 "tenant_remaining_usd": round(self._tenants[tenant].remaining_usd, 6),
             }
 
-    def reset(self) -> None:
+    def reset(self, *, restore_limits: bool = True) -> None:
+        """Clear spend, and by default restore the configured limits.
+
+        `restore_limits` defaults True because the common caller is a test
+        fixture, and a reset that clears SPEND but leaves a limit mutated by
+        an earlier test is a cross-test leak that produces order-dependent
+        failures -- exactly what the fixture exists to prevent.
+        """
         with self._lock:
             self.global_window.spent_usd = 0.0
             self._tenants.clear()
+            if restore_limits:
+                self.global_window.limit_usd = self._default_global_limit
+                self.tenant_limit_usd = self._default_tenant_limit

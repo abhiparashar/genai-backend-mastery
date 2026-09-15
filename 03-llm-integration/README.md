@@ -101,7 +101,7 @@ Cache hits return `cached=True` with `usage` zeroed, so hit rate is observable a
 
 ```python
 estimate_cost(Usage(1_000_000, 1_000_000), "gpt-4o-mini")  # $0.75
-estimate_cost(Usage(1_000_000, 1_000_000), "gpt-4o")       # $12.50
+estimate_cost(Usage(1_000_000, 1_000_000), "gpt-4o")  # $12.50
 ```
 
 **~17× spread.** Routing simple work (classification, extraction, routing itself) to the small model is usually the largest single cost win available, and it's a config change.
@@ -189,7 +189,7 @@ from llmkit import build_client, user
 
 client = build_client("openai", model="gpt-4o-mini", daily_budget_usd=5.00)
 print(client.complete([user("Hello")]).text)
-print(client.report())        # tokens, cost, cache hit rate, breaker state
+print(client.report())  # tokens, cost, cache hit rate, breaker state
 ```
 
 Keep `daily_budget_usd` low while learning. The guard exists because a runaway agent loop at 3am is a real way to lose real money.

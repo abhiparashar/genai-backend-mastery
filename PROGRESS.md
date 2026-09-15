@@ -112,6 +112,7 @@ These are load-bearing. Violating them breaks CI or breaks the repo's promise.
    ```python
    from __future__ import annotations
    import pathlib, sys
+
    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
    ```
 7. **Line length 100**, ruff-formatted.

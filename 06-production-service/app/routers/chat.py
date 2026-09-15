@@ -81,7 +81,9 @@ def _validate(request: ChatRequest, settings: Settings) -> None:
     categories = detect_injection(last)
     if categories:
         log_with(
-            logger, logging.WARNING, "possible prompt injection in request",
+            logger,
+            logging.WARNING,
+            "possible prompt injection in request",
             categories=categories,
         )
 
@@ -161,9 +163,13 @@ async def chat(
         tenant=principal.tenant,
     )
     log_with(
-        logger, logging.INFO, "chat completed",
-        model=result.model, tokens=result.usage.total_tokens,
-        cost_usd=round(cost, 6), latency_ms=round(duration_ms),
+        logger,
+        logging.INFO,
+        "chat completed",
+        model=result.model,
+        tokens=result.usage.total_tokens,
+        cost_usd=round(cost, 6),
+        latency_ms=round(duration_ms),
     )
 
     return ChatResponse(
@@ -285,8 +291,14 @@ async def chat_stream(
     )
 
 
-async def _run_job(job_id: str, request: ChatRequest, provider: Any, settings: Settings,
-                   budgets: BudgetRegistry, tenant: str) -> None:
+async def _run_job(
+    job_id: str,
+    request: ChatRequest,
+    provider: Any,
+    settings: Settings,
+    budgets: BudgetRegistry,
+    tenant: str,
+) -> None:
     _JOBS[job_id] = JobStatus(job_id=job_id, status="running")
     try:
         result = await provider.acomplete(_to_messages(request), temperature=request.temperature)

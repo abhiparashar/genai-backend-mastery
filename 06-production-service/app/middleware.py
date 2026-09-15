@@ -61,7 +61,12 @@ class TokenBucket:
 
     def consume(self, amount: float = 1.0, *, now: Optional[float] = None) -> bool:
         now = time.monotonic() if now is None else now
-        elapsed = now - self.updated_at
+        # Clamp at zero. Time going backwards must never DRAIN a bucket:
+        # a negative elapsed would subtract tokens and throttle a client for
+        # something the clock did. Monotonic clocks should not regress, but
+        # an injected test clock or a rewritten `now` can, and the failure
+        # mode (mysterious 429s) is expensive to diagnose.
+        elapsed = max(0.0, now - self.updated_at)
         self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_per_second)
         self.updated_at = now
         if self.tokens >= amount:
@@ -210,7 +215,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.exempt:
             return await call_next(request)
 
-        key = request.headers.get("X-API-Key") or (request.client.host if request.client else "anon")
+        key = request.headers.get("X-API-Key") or (
+            request.client.host if request.client else "anon"
+        )
         allowed, remaining, retry_after = self.limiter.check(key)
 
         if not allowed:

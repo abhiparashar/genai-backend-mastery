@@ -69,7 +69,10 @@ async def lifespan(app: FastAPI):
 
     logger.info(
         "starting %s env=%s provider=%s model=%s",
-        settings.app_name, settings.environment, settings.llm_provider, settings.llm_model,
+        settings.app_name,
+        settings.environment,
+        settings.llm_provider,
+        settings.llm_model,
     )
     # Shout about dangerous configuration, but still start: refusing to boot a
     # dev box over a warning is its own kind of unhelpful.
