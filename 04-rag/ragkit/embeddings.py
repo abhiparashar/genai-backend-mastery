@@ -271,3 +271,86 @@ def embed_chunks(embedder: Embedder, chunks: Sequence[Any], batch_size: int = 25
         for i in range(0, len(chunks), batch_size)
     ]
     return np.vstack(out)
+
+
+class SemanticStubEmbedder:
+    """A TEACHING DEVICE that imitates how a real dense model behaves.
+
+    Not a real embedding model. It exists because `HashingEmbedder` is purely
+    lexical, which makes it accidentally GOOD at exact identifiers -- the
+    opposite of a real embedding model, and it therefore hides the entire
+    argument for hybrid search.
+
+    Real dense retrievers behave in two characteristic ways that this
+    reproduces:
+
+    1. **Synonyms collapse.** "leave", "holiday" and "vacation" land in the
+       same region of space. A lexical matcher sees three unrelated tokens.
+    2. **Rare identifiers blur.** `SKU-4471` is a low-frequency token that
+       contributes almost nothing to a dense vector -- the model has no notion
+       that the digits are decisive. It gets absorbed into a generic
+       "error code" direction, so `SKU-4471` and `PAY-1180` look nearly
+       identical. THIS is precisely why vector search fails on identifiers and
+       why you pair it with BM25.
+
+    Use it to demonstrate the tradeoff offline. Use a real model in anger.
+    """
+
+    name = "semantic-stub"
+
+    # Words that mean the same thing are forced to share a bucket.
+    SYNONYMS: dict[str, str] = {
+        "holiday": "leave",
+        "vacation": "leave",
+        "pto": "leave",
+        "annual": "leave",
+        "reimbursement": "expense",
+        "expenses": "expense",
+        "claim": "expense",
+        "refund": "money_back",
+        "repayment": "money_back",
+        "password": "credential",
+        "login": "credential",
+        "credentials": "credential",
+        "secret": "credential",
+        "key": "credential",
+        "fault": "error",
+        "failure": "error",
+        "bug": "error",
+        "issue": "error",
+        "crash": "error",
+        "deadline": "time_limit",
+        "within": "time_limit",
+        "days": "time_limit",
+    }
+
+    # Identifier fragments. NOTE: tokenize() splits on the hyphen, so "SKU-4471"
+    # arrives as ["sku", "4471"] -- the discriminating part is the bare number.
+    # Matching only "abc-1234" here would never fire, which is exactly the bug
+    # that made an earlier version of this stub look identical to lexical search.
+    _IDENTIFIER_RE = re.compile(r"^(?:[a-z]{2,4}-?\d{3,6}|\d{3,6})$")
+
+    def __init__(self, dimensions: int = 256, *, identifier_weight: float = 0.05) -> None:
+        self.dimensions = dimensions
+        # Deliberately tiny: this is the "rare identifiers barely register" effect.
+        self.identifier_weight = identifier_weight
+
+    def _canonical(self, token: str) -> tuple[str, float]:
+        if self._IDENTIFIER_RE.match(token):
+            # Collapse every identifier onto ONE shared direction, and give it
+            # almost no weight. Now SKU-4471 ~= PAY-1180, exactly as a real
+            # dense model would see them.
+            return "generic_identifier", self.identifier_weight
+        return self.SYNONYMS.get(token, token), 1.0
+
+    def _bucket(self, token: str) -> int:
+        digest = hashlib.md5(token.encode("utf-8")).digest()  # noqa: S324 - not security
+        return int.from_bytes(digest[:4], "big") % self.dimensions
+
+    def embed(self, texts: Sequence[str]) -> np.ndarray:
+        vectors = np.zeros((len(texts), self.dimensions), dtype=np.float32)
+        for row, text in enumerate(texts):
+            for token in tokenize(text):
+                canonical, weight = self._canonical(token)
+                vectors[row, self._bucket(canonical)] += weight
+        return normalize(vectors)
