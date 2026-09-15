@@ -232,11 +232,24 @@ class MarkdownStructureChunker:
     overlap: int = 200
     prefix_heading: bool = True  # prepend the breadcrumb to chunk text
 
+    def _safe_overlap(self, size: int) -> int:
+        """Overlap that is always valid for a given (possibly reduced) size.
+
+        Two ways the configured overlap can become illegal here:
+        a caller sets chunk_size below the default overlap, or prefixing the
+        heading path shrinks the budget we hand to the recursive chunker.
+        Both would construct RecursiveCharacterChunker(size, overlap>=size),
+        which raises. Clamp instead of exploding on a reasonable config.
+        """
+        return max(0, min(self.overlap, max(0, size - 1), size // 4))
+
     def split(self, document: Document) -> list[Chunk]:
         text = document.text
         matches = list(_HEADING_RE.finditer(text))
         if not matches:
-            return RecursiveCharacterChunker(self.chunk_size, self.overlap).split(document)
+            return RecursiveCharacterChunker(
+                self.chunk_size, self._safe_overlap(self.chunk_size)
+            ).split(document)
 
         sections: list[tuple[str, str, int]] = []  # (heading_path, body, start)
         stack: list[tuple[int, str]] = []  # (level, title)
@@ -267,9 +280,13 @@ class MarkdownStructureChunker:
             if len(body) + len(prefix) <= self.chunk_size:
                 parts = [(prefix + body, start)]
             else:
-                sub = RecursiveCharacterChunker(
-                    self.chunk_size - len(prefix), self.overlap
-                )._split_text(body, RecursiveCharacterChunker().separators)
+                # The heading prefix eats into the budget, so recompute a
+                # legal overlap for the reduced size. Floor of 1 keeps the
+                # recursive chunker constructible even with a long heading.
+                sub_size = max(1, self.chunk_size - len(prefix))
+                sub = RecursiveCharacterChunker(sub_size, self._safe_overlap(sub_size))._split_text(
+                    body, RecursiveCharacterChunker().separators
+                )
                 parts = []
                 cursor = start
                 for piece in sub:
