@@ -12,7 +12,7 @@ red. Run it as you work.
 from __future__ import annotations
 
 import pytest
-from conftest import attempt
+from foundations_harness import attempt
 from exercises import ex01_java_trapdoors as ex
 from solutions import sol01_java_trapdoors as sol
 
