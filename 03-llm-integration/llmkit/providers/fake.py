@@ -82,7 +82,10 @@ class FakeProvider:
         model: str = "fake-1",
     ) -> None:
         self._responses = list(responses or [])
-        self._fail_times = fail_times
+        # Public and mutable on purpose: demos flip this to 0 to simulate a
+        # provider recovering, which is how the circuit-breaker example shows
+        # HALF_OPEN closing again.
+        self.fail_times = fail_times
         self._failure = failure or LLMError("simulated upstream failure")
         # A retryable default: most tests want to exercise the retry path.
         if failure is None:
@@ -133,7 +136,7 @@ class FakeProvider:
         return f"fake response to {last_user[:40]!r} [{digest}]"
 
     def _maybe_fail(self) -> None:
-        if self.failures < self._fail_times:
+        if self.failures < self.fail_times:
             self.failures += 1
             raise self._failure
 
