@@ -169,25 +169,28 @@ Legend: `[x]` done & pushed · `[~]` in progress · `[ ]` not started
 - [x] `.github/workflows/ci.yml` — offline matrix on 3.9/3.11/3.12, lint + format + tests + mypy
 - [x] `README.md` — the 8-phase / 12-month roadmap, Java↔Python mapping, accelerated tracks
 - [x] `roadmap-source.md` — the original 3,169-line curriculum brief (reference)
-- [x] `03-llm-integration/llmkit/types.py` — Message/Usage/ToolCall/LLMResponse/LLMProvider, `split_system()`
-- [x] `03-llm-integration/llmkit/errors.py` — retryable-vs-fatal taxonomy, `classify_status()`
-- [x] `03-llm-integration/llmkit/retry.py` — full-jitter backoff, Retry-After, wall-clock budget, sync+async
+- [x] **Module 03 `03-llm-integration/` — COMPLETE.** 51 tests, 0.3s, fully offline.
+  - `llmkit/types.py` — Message/Usage/ToolCall/LLMResponse/LLMProvider, `split_system()`
+  - `llmkit/errors.py` — retryable-vs-fatal taxonomy, `classify_status()`
+  - `llmkit/retry.py` — full-jitter backoff, Retry-After, wall-clock budget, sync+async
+  - `llmkit/providers/fake.py` — FakeProvider (scripted replies, `fail_times`, latency, counters)
+  - `llmkit/cost.py` — price table + `LAST_VERIFIED`, `CostTracker`, pre-flight `BudgetGuard`
+  - `llmkit/cache.py` — stable key, LRU+TTL, `RedisCache`, temperature-0 guard
+  - `llmkit/circuit.py` — CLOSED/OPEN/HALF_OPEN, injectable clock
+  - `llmkit/providers/openai.py` — httpx, sync+async+SSE+embeddings
+  - `llmkit/providers/anthropic.py` — Messages API, exposes the 5 wire diffs
+  - `llmkit/structured.py` — 4-layer typed output with bounded re-ask
+  - `llmkit/client.py` — façade: cache→budget→breaker→retry→provider→cost
+  - `llmkit/__init__.py` — 40 public exports, lazy provider loading
+  - `tests/test_llmkit_resilience.py` (23) + `tests/test_llmkit_client.py` (28)
+  - `examples/llmkit_ex_resilience.py`, `examples/llmkit_ex_concurrent.py` (12.1x measured)
+  - `README.md` — architecture, failure-mode table, wire-diff table, exit criteria
 
 ### Next up (in order)
 
-**Module 03 — `llmkit` (finish first; other modules mirror its contract)**
-- [ ] `llmkit/providers/fake.py` — FakeProvider. **DO THIS NEXT.** Everything downstream tests against it.
-- [ ] `llmkit/cost.py` — price table + `LAST_VERIFIED` date, `estimate_cost()`, `CostTracker`, `BudgetGuard`; tiktoken guarded, ~4-chars/token fallback
-- [ ] `llmkit/cache.py` — stable cache key, in-memory LRU+TTL, `RedisCache` (guarded); **only correct at temperature=0**
-- [ ] `llmkit/circuit.py` — closed/open/half-open breaker (name-check Resilience4j)
-- [ ] `llmkit/providers/openai.py` — httpx, not the SDK, so the wire format is visible; sync+async+SSE
-- [ ] `llmkit/providers/anthropic.py` — same, incl. top-level `system` field difference
-- [ ] `llmkit/structured.py` — JSON mode → extract-from-prose repair → Pydantic validate → bounded re-ask
-- [ ] `llmkit/client.py` — façade: provider selection, retry, timeout, cache, cost, budget, fallback chain, breaker, correlation-id logging
-- [ ] `llmkit/__init__.py` — public exports
-- [ ] `tests/` — `test_llmkit_{retry,errors,cache,cost,circuit,structured,providers,client}.py` + `conftest.py`
-- [ ] `examples/` — `llmkit_ex_{basic,streaming,concurrent,structured,resilience}.py`
-- [ ] `03-llm-integration/README.md` — architecture, failure-mode table, cost checklist
+**Optional polish for module 03 (skip unless you want it — module is usable now)**
+- [ ] `examples/llmkit_ex_{basic,streaming,structured}.py` — the three simple demos;
+      resilience + concurrent already cover the hard material
 
 **Then, in this order**
 - [ ] `04-rag/` — `ragkit`: types, loaders, chunking (4 strategies), embeddings (hashing/ST/OpenAI), vectorstore (exact + ANN), retrieval (BM25/vector/hybrid-RRF/MMR/rerank/HyDE), pipeline (citations, context budget, "I don't know"), evaluation (precision/recall/faithfulness/MRR/NDCG) + `data/` golden set + 4 examples + tests + README
