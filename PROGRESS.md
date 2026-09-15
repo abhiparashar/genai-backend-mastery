@@ -225,12 +225,29 @@ Legend: `[x]` done & pushed · `[~]` in progress · `[ ]` not started
   - `README.md` — when NOT to use an agent, termination table, sandbox table,
     injection defence ordering, memory tradeoffs, exit criteria
 
-**Optional polish (skip unless wanted — modules 03/04/05 are usable now)**
+- [x] **Module 06 `06-production-service/` — COMPLETE.** 43 tests, offline, boots with no key.
+  - `app/config.py` — pydantic-settings, SecretStr, startup_check warnings
+  - `app/llm.py` — offline FakeProvider + httpx OpenAI, degrades without a key
+  - `app/schemas.py` — model allowlist, bounded temperature/max_tokens
+  - `app/security.py` — constant-time key compare, size/repetition limits,
+    advisory injection heuristics, output secret scan
+  - `app/observability.py` — JSON logs, correlation ContextVar, redaction
+    filter, percentile metrics, Prometheus exposition
+  - `app/costs.py` — global + per-tenant windows, pre-flight enforcement
+  - `app/middleware.py` — correlation id, request logging, body-size limit,
+    token-bucket rate limiting with Retry-After
+  - `app/deps.py` — Depends() wiring, Principal, test hooks
+  - `app/routers/{chat,health}.py` — sync, SSE stream, async jobs, probes, metrics
+  - `app/main.py` — app factory, lifespan, one error envelope
+  - `Dockerfile` + `.dockerignore` + `docker-compose.yml` + `k8s/` (7 YAML docs)
+  - `tests/test_service_api.py` (43)
+  - `README.md` — Spring<->FastAPI map, decision rationale, readiness checklist
+
+**Optional polish (skip unless wanted — modules 03/04/05/06 are usable now)**
 - [ ] `03-llm-integration/examples/llmkit_ex_{basic,streaming,structured}.py`
 - [ ] `04-rag/examples/rag_ex_{minimal,chunking_compare}.py`
 
 **Then, in this order**
-- [ ] `06-production-service/` — FastAPI per the HTTP contract above: config, schemas, deps, llm, routers/{chat,health}, middleware (token bucket), observability (JSON logs + PII redaction + metrics), costs, security, Dockerfile, docker-compose, k8s/ + tests + README
 - [ ] `07-java-integration/` — `spring-ai-gateway/` (WebFlux + Resilience4j + SSE passthrough) and `spring-ai-native/` (Spring AI + pgvector RAG) + docker-compose + README (Java-vs-Python boundary decision table, strangler-fig migration)
 - [ ] `01-python-foundations/` — 10 exercise files / ~60 exercises, stub+solution+test triplets, Java-trapdoor coverage
 - [ ] `02-python-advanced/` — 6 topic files: decorators, generators, context managers, typing, **async** (highest value), performance
