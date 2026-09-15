@@ -12,8 +12,8 @@ red. Run it as you work.
 from __future__ import annotations
 
 import pytest
-from foundations_harness import attempt
 from exercises import ex01_java_trapdoors as ex
+from foundations_harness import attempt
 from solutions import sol01_java_trapdoors as sol
 
 # Both modules expose the same API, so one test covers both.
