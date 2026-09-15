@@ -3,7 +3,7 @@
 **Purpose:** this file is the handoff document. Any future session (human or AI) reads
 this first, and can continue building the repo without re-deriving decisions.
 
-Last updated: 2026-09-15 · Repo: https://github.com/abhiparashar/genai-backend-mastery
+Last updated: 2026-09-16 · Repo: https://github.com/abhiparashar/genai-backend-mastery
 
 ---
 
@@ -205,12 +205,30 @@ Legend: `[x]` done & pushed · `[~]` in progress · `[ ]` not started
 
 ### Next up (in order)
 
-**Optional polish (skip unless wanted — both modules are usable now)**
+- [x] **Module 05 `05-agents/` — COMPLETE.** 80 tests, <1s, fully offline.
+  - `agentkit/types.py` — ToolCall/ToolResult/Step/AgentResult, STOP_REASONS,
+    scriptable FakeProvider
+  - `agentkit/tools.py` — @tool JSON-Schema derivation from type hints +
+    docstring; sandboxed calculator (AST), read_file (path jail), http_get
+    (allowlist), sql_query (read-only); ToolRegistry that never raises
+  - `agentkit/react.py` — the loop, forgiving parser, five termination
+    guarantees (max_iterations/loop_detected/budget/deadline/no_progress)
+  - `agentkit/memory.py` — Buffer/Window/TokenWindow/Summary/Vector +
+    ConversationBudget, all pinning the system message
+  - `agentkit/guardrails.py` — indirect-injection detection + neutralize,
+    PII redaction (Luhn-checked), allowlist/denylist, fail-closed human
+    approval, audit trail
+  - `tests/test_agent_guardrails.py` (25) + `tests/test_agent_tools_and_loop.py` (55)
+  - `examples/agent_ex_react.py` — multi-step, SQL, error recovery,
+    termination, indirect injection
+  - `README.md` — when NOT to use an agent, termination table, sandbox table,
+    injection defence ordering, memory tradeoffs, exit criteria
+
+**Optional polish (skip unless wanted — modules 03/04/05 are usable now)**
 - [ ] `03-llm-integration/examples/llmkit_ex_{basic,streaming,structured}.py`
 - [ ] `04-rag/examples/rag_ex_{minimal,chunking_compare}.py`
 
 **Then, in this order**
-- [ ] `05-agents/` — `agentkit`: types, tools (`@tool` → JSON Schema from type hints; AST calculator, jailed file read, allowlisted HTTP, read-only SQL), react, function_calling, memory, planning, multi_agent, guardrails + 5 examples + tests + README
 - [ ] `06-production-service/` — FastAPI per the HTTP contract above: config, schemas, deps, llm, routers/{chat,health}, middleware (token bucket), observability (JSON logs + PII redaction + metrics), costs, security, Dockerfile, docker-compose, k8s/ + tests + README
 - [ ] `07-java-integration/` — `spring-ai-gateway/` (WebFlux + Resilience4j + SSE passthrough) and `spring-ai-native/` (Spring AI + pgvector RAG) + docker-compose + README (Java-vs-Python boundary decision table, strangler-fig migration)
 - [ ] `01-python-foundations/` — 10 exercise files / ~60 exercises, stub+solution+test triplets, Java-trapdoor coverage

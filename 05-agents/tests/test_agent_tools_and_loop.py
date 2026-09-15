@@ -321,13 +321,20 @@ def test_enforces_the_cost_ceiling(registry):
 
 
 def test_enforces_the_wall_clock_deadline(registry):
-    result = ReActAgent(
-        FakeProvider(responses=[REPEAT], latency=0.02),
-        registry,
-        max_iterations=50,
-        deadline_seconds=0.05,
-    ).run("x")
+    # Distinct arguments every turn, so loop detection cannot fire and race
+    # the deadline. An earlier version of this test reused one action and was
+    # flaky 4 runs in 5 -- whichever guard tripped first won.
+    counter = itertools.count()
+    provider = FakeProvider(
+        respond_fn=lambda m: (
+            f'Thought: go\nAction: calculator\nAction Input: {{"expression": "{next(counter)}+1"}}'
+        ),
+        latency=0.02,
+    )
+    result = ReActAgent(provider, registry, max_iterations=100, deadline_seconds=0.05).run("x")
+
     assert result.stop_reason == "deadline_exceeded"
+    assert result.iterations < 100
 
 
 def test_gives_up_when_output_is_never_parseable(registry):
