@@ -1,0 +1,114 @@
+[
+  {
+    "question": "How many days of annual leave do permanent employees get?",
+    "expected_answer": "25 days of paid annual leave per calendar year.",
+    "relevant_chunk_texts": ["25 days of paid annual leave"],
+    "should_refuse": false,
+    "metadata": {"doc": "handbook.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "Can I carry unused leave into next year?",
+    "expected_answer": "Yes, up to 5 days, and they expire on 31 March.",
+    "relevant_chunk_texts": ["carried into the following year", "31 March"],
+    "should_refuse": false,
+    "metadata": {"doc": "handbook.md", "type": "multi-fact"}
+  },
+  {
+    "question": "How long do secondary caregivers get for parental leave?",
+    "expected_answer": "8 weeks.",
+    "relevant_chunk_texts": ["Secondary\ncaregivers receive 8 weeks"],
+    "should_refuse": false,
+    "metadata": {"doc": "handbook.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "What is the deadline for submitting expenses?",
+    "expected_answer": "Within 30 days of the date of purchase.",
+    "relevant_chunk_texts": ["within 30 days of the date of purchase"],
+    "should_refuse": false,
+    "metadata": {"doc": "expenses.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "What is the meal allowance for international travel?",
+    "expected_answer": "65 USD per day for international travel.",
+    "relevant_chunk_texts": ["65 USD for\ninternational travel"],
+    "should_refuse": false,
+    "metadata": {"doc": "expenses.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "Do I need a receipt for a 20 dollar expense?",
+    "expected_answer": "No, receipts are only mandatory above 25 USD.",
+    "relevant_chunk_texts": ["Receipts are mandatory for any expense above 25 USD"],
+    "should_refuse": false,
+    "metadata": {"doc": "expenses.md", "type": "inference"}
+  },
+  {
+    "question": "What does error SKU-4471 mean?",
+    "expected_answer": "The warehouse inventory sync failed for a specific item.",
+    "relevant_chunk_texts": ["SKU-4471"],
+    "should_refuse": false,
+    "metadata": {"doc": "errors.md", "type": "exact-identifier"}
+  },
+  {
+    "question": "How do I fix PAY-1180?",
+    "expected_answer": "Reconcile the transaction manually before retrying, or the customer may be charged twice.",
+    "relevant_chunk_texts": ["PAY-1180"],
+    "should_refuse": false,
+    "metadata": {"doc": "errors.md", "type": "exact-identifier"}
+  },
+  {
+    "question": "When is production access granted to a new engineer?",
+    "expected_answer": "Only after security training is complete.",
+    "relevant_chunk_texts": ["granted only after security training is complete"],
+    "should_refuse": false,
+    "metadata": {"doc": "onboarding.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "How many approvals does a change to billing code need?",
+    "expected_answer": "Two approvals, one from the owning team.",
+    "relevant_chunk_texts": ["require two approvals"],
+    "should_refuse": false,
+    "metadata": {"doc": "onboarding.md", "type": "conditional"}
+  },
+  {
+    "question": "What should I do if an API key was committed and then reverted?",
+    "expected_answer": "Treat it as compromised and rotate it immediately, even though the commit was reverted.",
+    "relevant_chunk_texts": ["treated as compromised and rotated"],
+    "should_refuse": false,
+    "metadata": {"doc": "security.md", "type": "inference"}
+  },
+  {
+    "question": "How long does just-in-time production database access last?",
+    "expected_answer": "A maximum of 4 hours.",
+    "relevant_chunk_texts": ["maximum of 4 hours"],
+    "should_refuse": false,
+    "metadata": {"doc": "security.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "How long does a customer have to request a refund?",
+    "expected_answer": "Within 30 days of purchase.",
+    "relevant_chunk_texts": ["full refund within 30 days of purchase"],
+    "should_refuse": false,
+    "metadata": {"doc": "support.md", "type": "distractor-risk"}
+  },
+  {
+    "question": "When does a support issue get escalated to a team lead?",
+    "expected_answer": "Automatically after it has been open longer than 48 hours.",
+    "relevant_chunk_texts": ["open longer than 48 hours"],
+    "should_refuse": false,
+    "metadata": {"doc": "support.md", "type": "simple-lookup"}
+  },
+  {
+    "question": "What is the company's policy on remote work from abroad?",
+    "expected_answer": "",
+    "relevant_chunk_texts": [],
+    "should_refuse": true,
+    "metadata": {"type": "unanswerable", "note": "plausible HR question with no supporting document"}
+  },
+  {
+    "question": "Who is the current CEO and what was last quarter's revenue?",
+    "expected_answer": "",
+    "relevant_chunk_texts": [],
+    "should_refuse": true,
+    "metadata": {"type": "unanswerable", "note": "tempts the model to use pretrained knowledge"}
+  }
+]
