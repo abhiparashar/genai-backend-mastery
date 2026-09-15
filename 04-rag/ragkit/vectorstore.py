@@ -109,6 +109,19 @@ class InMemoryVectorStore:
             return np.zeros((0, self.dimensions), dtype=np.float32)
         return self._vectors
 
+    def vector_for(self, chunk_id: str) -> Optional[np.ndarray]:
+        """Stored vector for a chunk, by id.
+
+        Lets callers recover a TRUE cosine similarity for a chunk that came
+        back from a fusion retriever, whose scores are on an arbitrary scale.
+        Re-embedding the text instead would work but costs money on an API
+        embedder, and would silently drift if the embedder changed.
+        """
+        for index, chunk in enumerate(self.chunks):
+            if chunk.chunk_id == chunk_id:
+                return self.vectors[index]
+        return None
+
     def add(self, chunks: Sequence[Chunk], vectors: np.ndarray) -> None:
         if len(chunks) != len(vectors):
             raise ValueError(f"got {len(chunks)} chunks but {len(vectors)} vectors")
