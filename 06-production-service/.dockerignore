@@ -1,0 +1,15 @@
+# Keep the build context small and secrets out of the image.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+tests/
+.env
+.env.*
+!.env.example
+*.md
+k8s/
+docker-compose.yml
+.git/

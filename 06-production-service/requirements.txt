@@ -1,0 +1,17 @@
+# Runtime dependencies for the SERVICE IMAGE only.
+#
+# Deliberately narrower than the repo's root requirements.txt: the container
+# has no reason to carry numpy, the RAG stack, or test tooling. A smaller
+# image builds faster, starts faster, and has less to patch when a CVE lands
+# in something you were never using.
+#
+# Versions are pinned with `==` here, unlike the learning requirements at the
+# repo root. An image build must be reproducible: `>=` means the image you
+# ship today and the one you rebuild next month are different software.
+# Regenerate with `pip-compile` or `uv pip compile`.
+
+fastapi==0.128.8
+uvicorn[standard]==0.34.0
+pydantic==2.13.5
+pydantic-settings==2.7.1
+httpx==0.28.1

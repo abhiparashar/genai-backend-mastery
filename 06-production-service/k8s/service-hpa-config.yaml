@@ -1,0 +1,121 @@
+# Service, autoscaling, config, secrets, and a disruption budget.
+# Kept in one file because they are meaningless apart.
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  labels:
+    app: ai-service
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: 3
+  maxReplicas: 20
+
+  metrics:
+    # CPU is a POOR signal for this service and is here only as a backstop.
+    # An LLM proxy is I/O-bound: it sits at 5% CPU while every worker waits
+    # on a socket. Scaling on CPU means never scaling until it is far too
+    # late.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # The signal that actually matters: concurrent in-flight requests.
+    # Requires a metrics adapter (prometheus-adapter) exposing it.
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_in_flight
+        target:
+          type: AverageValue
+          averageValue: "20"
+
+  behavior:
+    scaleUp:
+      # React fast to load.
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100        # allow doubling
+          periodSeconds: 30
+    scaleDown:
+      # Scale down SLOWLY. Aggressive scale-down plus bursty traffic causes
+      # thrash: pods die, load spikes, pods start, repeat. Five minutes of
+      # stabilisation costs a little money and prevents a lot of pain.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: ai-service
+  # Without a PDB, a node drain can evict every replica at once. This forces
+  # the cluster to keep 2 serving while it reschedules the rest.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-service-config
+data:
+  # Non-secret configuration only. Anything in here is readable by anyone
+  # with cluster read access.
+  LLM_PROVIDER: "openai"
+  LLM_MODEL: "gpt-4o-mini"
+  LLM_TIMEOUT_SECONDS: "30"
+  LLM_MAX_RETRIES: "3"
+  RATE_LIMIT_PER_MINUTE: "600"
+  RATE_LIMIT_BURST: "50"
+  MAX_PROMPT_CHARS: "32000"
+  DAILY_BUDGET_USD: "500.00"
+  TENANT_DAILY_BUDGET_USD: "25.00"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  CORS_ORIGINS: "https://app.example.com"
+
+---
+# EXAMPLE ONLY - never commit real secrets.
+#
+# A Kubernetes Secret is base64, which is ENCODING, not encryption: anyone
+# with `get secret` reads it in plaintext. For production use External
+# Secrets Operator, Sealed Secrets, or the cloud provider's secret manager
+# with CSI, and enable encryption at rest on etcd.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-service-secrets
+type: Opaque
+stringData:
+  OPENAI_API_KEY: "sk-replace-me"
+  API_KEYS: "replace-with-real-keys"

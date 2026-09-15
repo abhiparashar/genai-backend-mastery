@@ -1,0 +1,93 @@
+# Local development stack: the service plus the infrastructure it would use
+# in production. Bring it up with:
+#
+#     docker compose up --build
+#
+# The service works WITHOUT redis and postgres (in-memory fallbacks), so this
+# file is about practising the wiring, not a hard requirement.
+
+services:
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Named `ai-service` because module 07's Spring gateway resolves this
+    # hostname on the shared network. Changing it breaks that integration.
+    container_name: ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: local
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
+      # Defaults to the offline provider: the stack runs with no credentials.
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      API_KEYS: ${API_KEYS:-dev-key-1,dev-key-2}
+      RATE_LIMIT_PER_MINUTE: 60
+      DAILY_BUDGET_USD: 5.00
+      TENANT_DAILY_BUDGET_USD: 1.00
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/genai
+    depends_on:
+      # `service_healthy`, not just `service_started`. Without the condition,
+      # the app starts while Postgres is still initialising and the first
+      # queries fail - the classic compose race.
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=2).status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          # A memory limit turns a slow leak into one restarted container
+          # instead of an OOM-killed host taking everything else with it.
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    # allkeys-lru: this Redis holds caches and rate-limit counters, so
+    # evicting the coldest key under pressure is correct. Never use LRU
+    # eviction for a Redis holding queues or sessions.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    # pgvector rather than plain postgres: the same database also stores
+    # embeddings for module 04's RAG, so there is no separate vector DB.
+    image: pgvector/pgvector:pg16
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: genai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d genai"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  postgres-data:

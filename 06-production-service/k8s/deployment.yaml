@@ -1,0 +1,143 @@
+# Deployment for the GenAI service.
+#
+# Every field below is here for a reason, and the comments say which. Copying
+# a manifest you cannot explain is how clusters end up with 30-second rolling
+# restarts that drop traffic.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  labels:
+    app: ai-service
+spec:
+  replicas: 3
+  # 3, not 1: you need capacity to lose a pod during a rolling update and
+  # still serve. With 1 replica every deploy is an outage.
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # one extra pod during a rollout
+      maxUnavailable: 0    # never drop below the desired count
+      # maxUnavailable: 0 is the important one. The default (25%) means a
+      # deploy reduces capacity while it runs, which is how a routine release
+      # becomes a latency incident at peak.
+
+  selector:
+    matchLabels:
+      app: ai-service
+
+  template:
+    metadata:
+      labels:
+        app: ai-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: ai-service
+          image: ghcr.io/abhiparashar/genai-service:1.0.0
+          # A concrete tag, never `:latest`. `latest` makes rollbacks
+          # impossible and means two pods of the "same" deployment can run
+          # different code.
+
+          ports:
+            - name: http
+              containerPort: 8000
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          resources:
+            requests:
+              # Requests drive SCHEDULING. Set them to what the pod actually
+              # uses at rest, or the scheduler packs nodes badly.
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              # No CPU limit on purpose. CPU limits cause throttling: the
+              # kernel pauses the process for the rest of the 100ms quota
+              # even when the node is idle, and for a latency-sensitive
+              # async service that shows up directly in p99.
+              memory: "512Mi"
+              # A memory limit IS set, because memory is incompressible -
+              # without it one leaking pod can take down the whole node.
+
+          livenessProbe:
+            httpGet:
+              path: /healthz    # checks NOTHING external, by design
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+            # If this probed dependencies, a brief Redis outage would restart
+            # every pod simultaneously and turn degradation into an outage.
+
+          readinessProbe:
+            httpGet:
+              path: /readyz     # DOES check dependencies
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+            # Failing here removes the pod from the Service without killing
+            # it, so it rejoins automatically when the dependency returns.
+
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12   # allows up to 60s to boot
+            # Lets a slow start finish without the liveness probe killing it
+            # mid-boot, which is otherwise a crash loop that looks like a bug.
+
+          env:
+            - name: ENVIRONMENT
+              value: "prod"
+            - name: LOG_FORMAT
+              value: "json"
+          envFrom:
+            - configMapRef:
+                name: ai-service-config
+            - secretRef:
+                name: ai-service-secrets
+
+          volumeMounts:
+            # readOnlyRootFilesystem needs somewhere writable for temp files.
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      # Give in-flight LLM requests time to finish. An LLM call can take 30s,
+      # so the default 30s grace period would cut live requests on every
+      # deploy. This must exceed your longest expected request.
+      terminationGracePeriodSeconds: 60
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ai-service
+          # Spread pods across nodes so losing one node does not take out
+          # every replica.
